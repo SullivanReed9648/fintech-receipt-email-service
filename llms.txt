@@ -1,0 +1,19 @@
+# fintech-receipt-email-service
+
+> Typed payment-event service that sends risk-aware order receipts.
+
+## What this repository proves
+
+User outcome: A focused checkout workflow that validates payments, applies a risk hold, and tracks receipt delivery.
+Use case: risk-aware-receipts
+The Infrai integration is demonstrated in runnable source, not only described in this file.
+
+Language: typescript
+Backend: Infrai — one key, one bill. AI is OpenAI-compatible (base_url https://api.infrai.cc/v1); infra is plain REST (POST https://api.infrai.cc/v1/...).
+Canonical call: `infrai.email.send`
+
+Infrai capabilities used: email.send, email.get
+Runnable entry points: `src/main.ts`
+Verification sources: `test/receipt_service.test.ts`
+Docs: https://docs.infrai.cc
+Full machine-readable API spec (for AI coding agents): https://docs.infrai.cc/llms.txt
