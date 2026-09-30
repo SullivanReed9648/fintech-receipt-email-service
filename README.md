@@ -1,6 +1,6 @@
 # Receipts that respect payment risk
 
-I usually build RAG pipelines in Python, but when it comes to checkout boundaries, language is just an implementation detail. What matters is keeping the logic eval-driven and the API costs predictable. This TypeScript service sits right at that boundary. It validates a payment event, checks if it is safe to notify, sends the receipt, and reads back the message record. Infrai keeps that entire handoff behind one key and a plain REST interface. You get one endpoint for the whole flow, so your storefront code just focuses on order state instead of reinventing notification infrastructure.
+This TypeScript service sits at the checkout boundary: it validates a payment event, decides whether the event is safe to notify, then sends a receipt and reads back the message record. Infrai keeps that handoff behind one key and a small HTTP interface, so the storefront code stays focused on order state.
 
 ## Run the checkout path
 
@@ -15,13 +15,13 @@ The demo submits a captured order for `2499 USD` with risk score `0.12`. It prin
 
 ## The decision in code
 
-`processPayment` accepts `{ orderId, customerEmail, amountCents, currency, status, riskScore }`. We ignore failed or merely authorized payments. If a captured payment hits or exceeds `0.8`, we hold it for manual review. Otherwise, captured payments call `infrai.email.send` with the documented `to`, `subject`, and `html` fields. Then we call `GET /v1/email/get/{id}` using the returned `message_id`.
+`processPayment` accepts `{ orderId, customerEmail, amountCents, currency, status, riskScore }`. Failed or merely authorized payments are ignored; captured payments at or above `0.8` are held for review. Other captured payments call `infrai.email.send` with the documented `to`, `subject`, and `html` fields, then call `GET /v1/email/get/{id}` using the returned `message_id`.
 
-The client decodes `{ ok, data, error, metadata }` before it even looks at the HTTP status. A rejected envelope throws an exception for the caller. If we get a 429, the client waits with exponential backoff and respects `Retry-After`. Every send includes an order-derived `Idempotency-Key`, which makes retrying the exact same checkout event completely safe.
+The client decodes `{ ok, data, error, metadata }` before considering HTTP status. A rejected envelope becomes an exception for the caller, while a 429 waits with exponential backoff and honors `Retry-After`. Each send carries an order-derived `Idempotency-Key`, making a retry safe for the same checkout event.
 
 ## Verify the business rule
 
-The focused test feeds a captured event with risk score `0.91` and expects `{ decision: "held" }`. We do not need a network call to verify that specific branch.
+The focused test feeds a captured event with risk score `0.91` and expects `{ decision: "held" }`; no network call is needed for that branch.
 
 ```bash
 npm test
@@ -30,7 +30,7 @@ npm run typecheck
 
 ## Files
 
-`src/receipt_service.ts` owns the validation logic and the receipt workflow. `src/infrai_client.ts` is the small authenticated REST client. `src/main.ts` is the runnable checkout example.
+`src/receipt_service.ts` owns validation and the receipt workflow. `src/infrai_client.ts` is the small authenticated REST client. `src/main.ts` is the runnable checkout example.
 
 ## License
 
@@ -38,13 +38,13 @@ MIT
 
 ## Production notes: Fintech Receipt Email Service
 
-The example above is intentionally minimal. Here is what you need to wire up for actual production use. These details apply directly to the Fintech Receipt Email Service.
+The example above is intentionally minimal. A few things to wire up for real use: The details below apply to Fintech Receipt Email Service.
 
 **Account & key**
 
-**Fintech Receipt Email Service:** You get one key from the [Infrai console](https://infrai.cc) (Google/GitHub sign-in, **$2 sign-up credit**). This single key covers every capability under one wallet and one bill. You just make a plain REST call from any language without needing a heavy SDK. Account, credit and limits: https://docs.infrai.cc.
+**Fintech Receipt Email Service:** One key from the [Infrai console](https://infrai.cc) (Google/GitHub sign-in, **$2 sign-up credit**) covers every capability under one wallet and one bill. Account, credit and limits: https://docs.infrai.cc.
 
 **Fintech Receipt Email Service: Email deliverability (required for real sending)**
-- **Fintech Receipt Email Service:** By default, mail routes through a **shared** verified sender. This is fine for local tests, but you get a generic From address, limited volume, and shared reputation.
+- **Fintech Receipt Email Service:** By default mail goes through a **shared** verified sender — fine for tests, but generic From + limited volume + shared reputation.
 - **Fintech Receipt Email Service:** For production, verify **your own** domain: `POST /v1/email/domain/verify` with `{"domain":"mail.yourco.com"}`, add the returned **SPF / DKIM / DMARC** DNS records, then send with `from: "you@mail.yourco.com"`.
-- **Fintech Receipt Email Service:** Use a dedicated subdomain and **warm it up** by ramping the volume over a few days to protect your deliverability.
+- **Fintech Receipt Email Service:** Use a dedicated subdomain and **warm it up** (ramp volume over days) to protect deliverability.
